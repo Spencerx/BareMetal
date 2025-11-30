@@ -9,6 +9,7 @@
 ; Internal
 %include "drivers/apic.asm"
 %include "drivers/ioapic.asm"
+%include "drivers/msi.asm"
 %include "drivers/ps2.asm"
 %include "drivers/serial.asm"
 %include "drivers/timer.asm"

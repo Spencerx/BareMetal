@@ -575,6 +575,27 @@ net_virtio_poll_nodata:
 ; -----------------------------------------------------------------------------
 
 
+; -----------------------------------------------------------------------------
+; Virtio-net Interrupt
+align 8
+net_virtio_int:
+	push rcx
+	push rax
+
+	; Clear pending interrupt (if set)
+
+	; Acknowledge the interrupt
+	mov ecx, APIC_EOI
+	xor eax, eax
+	call os_apic_write
+
+	pop rax
+	pop rcx
+	iretq
+; -----------------------------------------------------------------------------
+
+
+
 ; Variables
 virtio_net_notify_offset: dq 0
 virtio_net_notify_offset_multiplier: dq 0
