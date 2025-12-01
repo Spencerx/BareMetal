@@ -149,6 +149,7 @@ os_PacketBuffers:	equ os_SystemVariables + 0xC000	; 16KiB
 ; net_table values (per device - 128 bytes)
 nt_ID:			equ 0x00 ; 16-bit Driver ID
 nt_lock:		equ 0x02 ; 16-bit Lock for b_net_tx
+nt_interrupt:		equ 0x04 ; 16-bit Interrupts enabled flag
 nt_MAC:			equ 0x08 ; 48-bit MAC Address
 nt_base:		equ 0x10 ; 64-bit Base MMIO
 nt_config:		equ 0x18 ; 64-bit Config function address

@@ -347,7 +347,7 @@ xhci_reset_build_scratchpad:
 	; ├──────────────────────────────┴───────┤
 	; |     Ring Segment Base Address Hi     |
 	; ├──────────────────┬───────────────────┤
-	; |      RsvdZ       | Ring Segment Size | 
+	; |      RsvdZ       | Ring Segment Size |
 	; ├──────────────────┴───────────────────┤
 	; |                RsvdZ                 |
 	; └──────────────────────────────────────┘
@@ -1862,7 +1862,7 @@ xHCI_CC_STALL_ERROR			equ 6
 xHCI_CC_RESOURCE_ERROR			equ 7
 xHCI_CC_BANDWIDTH_ERROR			equ 8
 xHCI_CC_NO_SLOTS_ERROR			equ 9
-xHCI_CC_INVALID_STREAM_TYPE_ERROR	equ 10 
+xHCI_CC_INVALID_STREAM_TYPE_ERROR	equ 10
 xHCI_CC_SLOT_NOT_ENABLED_ERROR		equ 11
 xHCI_CC_EP_NOT_ENABLED_ERROR		equ 12
 xHCI_CC_SHORT_PACKET			equ 13

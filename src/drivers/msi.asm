@@ -10,6 +10,19 @@
 ; Initialize MSI-X for a device
 ;  IN:	RDX = Packed Bus address (as per syscalls/bus.asm)
 ;	AL  = Start Vector
+; OUT:	Carry flag
+; -----------------------------------------------------------------------------
+; Message Control - Enable (15), Function Mask (14), Table Size (10:0)
+;
+; Example MSI-X Entry (From QEMU xHCI Controller)
+; 000FA011 <- Cap ID 0x11 (MSI-X), next ptr 0xA0, message control 0x000F - Table size is bits 10:0 so 0x0F
+; 00003000 <- BIR (2:0) is 0x0 so BAR0, Table Offset (31:3) - 8-byte aligned so clear low 3 bits - 0x3000 in this case
+; 00003800 <- Pending Bit BIR (2:0) and Pending Bit Offset (31:3) - 0x3800 in this case
+;
+; Example MSI-X Entry (From QEMU Virtio-Net)
+; 00038411 <- Cap ID 0x11 (MSI-X), next ptr 0x84, message control 0x0003 - Table size is bits 10:0 so 3 (n-1 so table size is actually 4)
+; 00000001 <- BIR (2:0) is 0x1 so BAR1, Table Offset (31:3) - 8-byte aligned so clear low 3 bits - 0x0 in this case
+; 00000801 <- Pending Bit BIR (2:0) is 0x1 so BAR1 and Pending Bit Offset (31:3) is 0x800
 msix_init:
 	push r8
 	push rdx
@@ -22,17 +35,12 @@ msix_init:
 	; Check for MSI-X in PCI Capabilities
 	mov cl, 0x11			; PCI Capability ID for MSI-X
 	call os_bus_cap_check
-	jc msix_init_error
+	jc msix_init_error		; os_bus_cap_check sets carry flag is the cap isn't found
 
-	; Enable MSI-X
-msix_init_enable:
-	push rdx
+	push rdx			; Save packed bus address
+
 	; Enable MSI-X, Mask it, Get Table Size
-	; Example MSI-X Entry (From QEMU xHCI Controller)
-	; 000FA011 <- Cap ID 0x11 (MSI-X), next ptr 0xA0, message control 0x000F - Table size is bits 10:0 so 0x0F
-	; 00003000 <- BIR (2:0) is 0x0 so BAR0, Table Offset (31:3) - 8-byte aligned so clear low 3 bits - 0x3000 in this case
-	; 00003800 <- Pending Bit BIR (2:0) and Pending Bit Offset (31:3) - 0x3800 in this case
-	; Message Control - Enable (15), Function Mask (14), Table Size (10:0)
+msix_init_enable:
 	call os_bus_read
 	mov ecx, eax			; Save for Table Size
 	bts eax, 31			; Enable MSI-X
@@ -51,7 +59,6 @@ msix_init_enable:
 	mov dl, al
 	call os_bus_read		; Read the BAR address
 	add rax, rbx			; Add offset to base
-	sub rax, 0x04
 	mov rdi, rax
 	pop rdx
 	; Configure MSI-X Table
@@ -73,7 +80,7 @@ msix_init_create_entry:
 	jne msix_init_create_entry
 
 	; Unmask MSI-X via bus
-	pop rdx
+	pop rdx				; Restore packed bus address
 	call os_bus_read
 	btr eax, 30			; Clear Function Mask
 	call os_bus_write
