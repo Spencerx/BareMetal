@@ -10,7 +10,7 @@
 ; Initialize MSI-X for a device
 ;  IN:	RDX = Packed Bus address (as per syscalls/bus.asm)
 ;	AL  = Start Vector
-; OUT:	Carry flag
+; OUT:	Carry flag (clear on success, set on error)
 ; -----------------------------------------------------------------------------
 ; Message Control - Enable (15), Function Mask (14), Table Size (10:0)
 ;
@@ -59,6 +59,7 @@ msix_init_enable:
 	mov dl, al
 	call os_bus_read		; Read the BAR address
 	add rax, rbx			; Add offset to base
+	sub rax, 0x04
 	mov rdi, rax
 	pop rdx
 	; Configure MSI-X Table
@@ -108,6 +109,18 @@ msix_init_error:
 ; Initialize MSI for a device
 ;  IN:	RDX = Packed Bus address (as per syscalls/bus.asm)
 ;	AL  = Start Vector
+; OUT:	Carry flag (clear on success, set on error)
+; -----------------------------------------------------------------------------
+; Example MSI Entry (From Intel test system)
+; 00869005 <- Cap ID 0x05 (MSI), next ptr 0x90, message control 0x0x0086 (64-bit, MMC 8)
+; 00000000 <- Message Address Low
+; 00000000 <- Message Address High
+; 00000000 <- Message Data (15:0)
+; 00000000 <- Mask (only exists if Per-vector masking is enabled)
+; 00000000 <- Pending (only exists if Per-vector masking is enabled)
+; Message Control - Per-vector masking (8), 64-bit (7), Multiple Message Enable (6:4), Multiple Message Capable (3:1), Enable (0)
+; MME/MMC 000b = 1, 001b = 2, 010b = 4, 011b = 8, 100b = 16, 101b = 32
+; Todo - Test bit 7, Check Multiple Message Capable, copy to Multiple Message Enable
 msi_init:
 	push rdx
 	push rcx
@@ -124,17 +137,6 @@ msi_init:
 	; Enable MSI
 msi_init_enable:
 	push rdx
-	; Enable MSI
-	; Example MSI Entry (From Intel test system)
-	; 00869005 <- Cap ID 0x05 (MSI), next ptr 0x90, message control 0x0x0086 (64-bit, MMC 8)
-	; 00000000 <- Message Address Low
-	; 00000000 <- Message Address High
-	; 00000000 <- Message Data (15:0)
-	; 00000000 <- Mask (only exists if Per-vector masking is enabled)
-	; 00000000 <- Pending (only exists if Per-vector masking is enabled)
-	; Message Control - Per-vector masking (8), 64-bit (7), Multiple Message Enable (6:4), Multiple Message Capable (3:1), Enable (0)
-	; MME/MMC 000b = 1, 001b = 2, 010b = 4, 011b = 8, 100b = 16, 101b = 32
-	; Todo - Test bit 7, Check Multiple Message Capable, copy to Multiple Message Enable
 	add dl, 1
 	mov rax, [os_LocalAPICAddress]	; 0xFEE for bits 31:20, Dest (19:12), RH (3), DM (2)
 	call os_bus_write		; Store Message Address Low
