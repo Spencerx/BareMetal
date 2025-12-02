@@ -23,6 +23,9 @@
 ; 00038411 <- Cap ID 0x11 (MSI-X), next ptr 0x84, message control 0x0003 - Table size is bits 10:0 so 3 (n-1 so table size is actually 4)
 ; 00000001 <- BIR (2:0) is 0x1 so BAR1, Table Offset (31:3) - 8-byte aligned so clear low 3 bits - 0x0 in this case
 ; 00000801 <- Pending Bit BIR (2:0) is 0x1 so BAR1 and Pending Bit Offset (31:3) is 0x800
+;
+; Resulting MSI-X table entry in memory should look similar to:
+; 0xXXXXXXXX: FEE00000 00000000 000040XX 00000000
 msix_init:
 	push r8
 	push rdi

@@ -266,7 +266,7 @@ virtio_net_init_reset_wait:
 	; reading and possibly writing the device’s virtio configuration space
 	; population of virtqueues
 
-	mov ax, 0x0000
+	mov ax, 0xFFFF
 	mov [rsi+VIRTIO_CONFIG_MSIX_VECTOR], ax
 
 	; Set up Queue 0 (Receive)
@@ -290,9 +290,8 @@ virtio_net_init_reset_wait:
 	rol rax, 32
 	mov [rsi+VIRTIO_QUEUE_DEVICE+8], eax
 	rol rax, 32
-	mov ax, 0x0001
+	mov ax, 0x0000
 	mov [rsi+VIRTIO_QUEUE_MSIX_VECTOR], ax
-	mov ax, [rsi+VIRTIO_QUEUE_MSIX_VECTOR]
 	mov ax, 1
 	mov [rsi+VIRTIO_QUEUE_ENABLE], ax
 
