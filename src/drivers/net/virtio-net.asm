@@ -150,22 +150,25 @@ virtio_net_init_cap_end:
 
 	; Enable interrupts
 	pop rdx				; Restore packed bus address
-;	mov al, 0x40
-;	call msix_init
-;	jc virtio_net_init_no_int
-	; Create a gate in the IDT
-;	mov edi, 0x40
+	mov al, 0xB0
+	call msix_init
+	jc virtio_net_init_no_int
+
+	; Create gate(s) in the IDT
+	push rdi
+	mov edi, 0xB0
+	mov rax, net_virtio_int
+	call create_gate
+	mov edi, 0xB1
+	mov rax, net_virtio_int
+	call create_gate
+;	mov edi, 0xB2
 ;	mov rax, net_virtio_int
 ;	call create_gate
-;	mov edi, 0x41
+;	mov edi, 0xB3
 ;	mov rax, net_virtio_int
 ;	call create_gate
-;	mov edi, 0x42
-;	mov rax, net_virtio_int
-;	call create_gate
-;	mov edi, 0x43
-;	mov rax, net_virtio_int
-;	call create_gate
+	pop rdi
 
 virtio_net_init_no_int:
 
@@ -553,7 +556,7 @@ align 8
 net_virtio_int:
 	push rcx
 	push rax
-
+jmp $
 	; Clear pending interrupt (if set)
 	mov al, 0xab
 	call os_debug_dump_al

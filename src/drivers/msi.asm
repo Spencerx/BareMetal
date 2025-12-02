@@ -25,6 +25,7 @@
 ; 00000801 <- Pending Bit BIR (2:0) is 0x1 so BAR1 and Pending Bit Offset (31:3) is 0x800
 msix_init:
 	push r8
+	push rdi
 	push rdx
 	push rcx
 	push rbx
@@ -55,13 +56,21 @@ msix_init_enable:
 	mov ebx, eax			; EBX for the Table Offset
 	and ebx, 0xFFFFFFF8		; Clear bits 2:0
 	and eax, 0x00000007		; Keep bits 2:0 for the BIR
+
 	add al, 0x04			; Add offset to start of BARs
 	mov dl, al
 	call os_bus_read		; Read the BAR address
+
+; TODO - Read BAR properly
+;	push rcx			; Save RCX as os_bus_read_bar returns a value in it
+;	call os_bus_read_bar		; Read the BAR address
+;	pop rcx
+
 	add rax, rbx			; Add offset to base
-	sub rax, 0x04
+	and eax, 0xFFFFFFF8		; Clear bits 2:0 of a 32-bit BAR
 	mov rdi, rax
 	pop rdx
+
 	; Configure MSI-X Table
 	add cx, 1			; Table Size is 0-indexed
 	mov ebx, 0x00004000		; Trigger Mode (15), Level (14), Delivery Mode (10:8), Vector (7:0)
@@ -90,6 +99,7 @@ msix_init_create_entry:
 	pop rbx
 	pop rcx
 	pop rdx
+	pop rdi
 	pop r8
 	clc				; Clear the carry flag
 	ret
@@ -99,6 +109,7 @@ msix_init_error:
 	pop rbx
 	pop rcx
 	pop rdx
+	pop rdi
 	pop r8
 	stc				; Set the carry flag
 	ret
