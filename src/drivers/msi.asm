@@ -76,7 +76,7 @@ msix_init_enable:
 
 	; Configure MSI-X Table
 	add cx, 1			; Table Size is 0-indexed
-	mov ebx, 0x00004000		; Trigger Mode (15), Level (14), Delivery Mode (10:8), Vector (7:0)
+	xor ebx, ebx			; Trigger Mode (15), Level (14), Delivery Mode (10:8), Vector (7:0)
 	mov bl, r8b			; Store start vector
 msix_init_create_entry:
 	mov rax, [os_LocalAPICAddress]	; 0xFEE for bits 31:20, Dest (19:12), RH (3), DM (2)

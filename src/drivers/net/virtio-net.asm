@@ -17,7 +17,7 @@ net_virtio_init:
 	push rbx
 	push rax
 
-	push rdx			; Save packed bus address
+;	push rdx			; Save packed bus address
 
 	mov rdi, net_table
 	xor eax, eax
@@ -42,8 +42,35 @@ net_virtio_init:
 	mov dl, 0x01			; Read Status/Command
 	call os_bus_read
 	bts eax, 10			; Set Interrupt Disable
+	bts eax, 2			; Enable Bus Master
 	bts eax, 1			; Enable Memory Space
 	call os_bus_write
+
+	; Configure MSI-X (if available)
+	mov al, 0xB0
+	call msix_init
+	jc net_virtio_init_skip_int
+
+	; Create gate(s) in the IDT
+	push rdi
+	sub rdi, 0x1C
+	mov ax, 0x0001			; Set flag for nt_interrupt
+	stosw
+	mov edi, 0xB0
+	mov rax, net_virtio_int
+	call create_gate
+	mov edi, 0xB1
+	mov rax, net_virtio_int
+	call create_gate
+;	mov edi, 0xB2
+;	mov rax, net_virtio_int
+;	call create_gate
+;	mov edi, 0xB3
+;	mov rax, net_virtio_int
+;	call create_gate
+	pop rdi
+
+net_virtio_init_skip_int:
 
 	; Get required values from PCI Capabilities
 	mov dl, 1
@@ -147,30 +174,6 @@ virtio_net_init_cap_end:
 	xor edx, edx
 	mov dl, [os_net_icount]
 	call net_virtio_reset
-
-	; Enable interrupts
-	pop rdx				; Restore packed bus address
-	mov al, 0xB0
-	call msix_init
-	jc virtio_net_init_no_int
-
-	; Create gate(s) in the IDT
-	push rdi
-	mov edi, 0xB0
-	mov rax, net_virtio_int
-	call create_gate
-	mov edi, 0xB1
-	mov rax, net_virtio_int
-	call create_gate
-;	mov edi, 0xB2
-;	mov rax, net_virtio_int
-;	call create_gate
-;	mov edi, 0xB3
-;	mov rax, net_virtio_int
-;	call create_gate
-	pop rdi
-
-virtio_net_init_no_int:
 
 	; Store call addresses
 	sub rdi, 0x28
@@ -555,7 +558,7 @@ align 8
 net_virtio_int:
 	push rcx
 	push rax
-jmp $
+
 	; Clear pending interrupt (if set)
 	mov al, 0xab
 	call os_debug_dump_al
