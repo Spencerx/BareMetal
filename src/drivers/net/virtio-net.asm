@@ -17,8 +17,6 @@ net_virtio_init:
 	push rbx
 	push rax
 
-;	push rdx			; Save packed bus address
-
 	mov rdi, net_table
 	xor eax, eax
 	mov al, [os_net_icount]
@@ -47,27 +45,23 @@ net_virtio_init:
 	call os_bus_write
 
 	; Configure MSI-X (if available)
+	; TODO - Keep track of used vectors and increment as needed
 	mov al, 0xB0
 	call msix_init
 	jc net_virtio_init_skip_int
 
 	; Create gate(s) in the IDT
 	push rdi
-	sub rdi, 0x1C
-	mov ax, 0x0001			; Set flag for nt_interrupt
-	stosw
 	mov edi, 0xB0
 	mov rax, net_virtio_int
 	call create_gate
-	mov edi, 0xB1
-	mov rax, net_virtio_int
-	call create_gate
-;	mov edi, 0xB2
-;	mov rax, net_virtio_int
-;	call create_gate
-;	mov edi, 0xB3
-;	mov rax, net_virtio_int
-;	call create_gate
+	pop rdi
+
+	; Set flag for interrupts enabled in net_table
+	push rdi
+	sub rdi, 0x1C
+	mov ax, 0x0001			; Set flag for nt_interrupt
+	stosw
 	pop rdi
 
 net_virtio_init_skip_int:
@@ -269,7 +263,7 @@ virtio_net_init_reset_wait:
 	; reading and possibly writing the device’s virtio configuration space
 	; population of virtqueues
 
-	mov ax, 0xFFFF
+	mov ax, 0xFFFF			; Disable config interrupts
 	mov [rsi+VIRTIO_CONFIG_MSIX_VECTOR], ax
 
 	; Set up Queue 0 (Receive)
@@ -293,7 +287,7 @@ virtio_net_init_reset_wait:
 	rol rax, 32
 	mov [rsi+VIRTIO_QUEUE_DEVICE+8], eax
 	rol rax, 32
-	mov ax, 0x0000
+	mov ax, 0x0000			; MSI-X index 0
 	mov [rsi+VIRTIO_QUEUE_MSIX_VECTOR], ax
 	mov ax, 1
 	mov [rsi+VIRTIO_QUEUE_ENABLE], ax
@@ -559,10 +553,6 @@ net_virtio_int:
 	push rcx
 	push rax
 
-	; Clear pending interrupt (if set)
-	mov al, 0xab
-	call os_debug_dump_al
-
 	; Acknowledge the interrupt
 	mov ecx, APIC_EOI
 	xor eax, eax
@@ -572,7 +562,6 @@ net_virtio_int:
 	pop rcx
 	iretq
 ; -----------------------------------------------------------------------------
-
 
 
 ; Variables

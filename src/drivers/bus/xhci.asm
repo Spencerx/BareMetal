@@ -28,6 +28,7 @@ xhci_init:
 	call os_bus_write		; Write updated Status/Command
 
 	; Configure MSI-X (if available)
+	; TODO - Keep track of used vectors and increment as needed
 	mov al, 0xA0
 	call msix_init
 	jnc xhci_init_msix_msi_done
