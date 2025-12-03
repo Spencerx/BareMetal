@@ -25,7 +25,7 @@ net_virtio_init:
 
 	mov ax, 0x1AF4			; Driver tag for virtio-net
 	stosw
-	push rdi			; Used in msi-x init
+	push rdi			; Save offset into net_table
 	add rdi, 14
 
 	; Get the Base Memory Address of the device
@@ -40,8 +40,31 @@ net_virtio_init:
 	mov dl, 0x01			; Read Status/Command
 	call os_bus_read
 	bts eax, 10			; Set Interrupt Disable
+	bts eax, 2			; Enable Bus Master
 	bts eax, 1			; Enable Memory Space
 	call os_bus_write
+
+	; Configure MSI-X (if available)
+	; TODO - Keep track of used vectors and increment as needed
+	mov al, 0xB0
+	call msix_init
+	jc net_virtio_init_skip_int
+
+	; Create gate(s) in the IDT
+	push rdi
+	mov edi, 0xB0
+	mov rax, net_virtio_int
+	call create_gate
+	pop rdi
+
+	; Set flag for interrupts enabled in net_table
+	push rdi
+	sub rdi, 0x1C
+	mov ax, 0x0001			; Set flag for nt_interrupt
+	stosw
+	pop rdi
+
+net_virtio_init_skip_int:
 
 	; Get required values from PCI Capabilities
 	mov dl, 1
@@ -58,58 +81,7 @@ virtio_net_init_cap_next:
 	call os_bus_read
 	cmp al, VIRTIO_PCI_CAP_VENDOR_CFG
 	je virtio_net_init_cap
-	cmp al, 0x11
-	je virtio_net_init_msix
 	shr eax, 8
-	jmp virtio_net_init_cap_next_offset
-
-virtio_net_init_msix:
-	push rdx
-
-	; Enable MSI-X, Mask it, Get Table Size
-	call os_bus_read
-	mov ecx, eax			; Save for Table Size
-	bts eax, 31			; Enable MSIX
-	bts eax, 30			; Set Function Mask
-	call os_bus_write
-	shr ecx, 16			; Shift Message Control to low 16-bits
-	and cx, 0x7FF			; Keep bits 10:0
-
-	; Read the BIR and Table Offset
-	push rdx
-	add dl, 1
-	call os_bus_read
-	mov ebx, eax			; EBX for the Table Offset
-	and ebx, 0xFFFFFFF8		; Clear bits 2:0
-	and eax, 0x00000007		; Keep bits 2:0 for the BIR
-	add al, 0x04			; Add offset to start of BARs
-	mov dl, al
-	call os_bus_read		; Read the BAR address
-	add rax, rbx			; Add offset to base
-	mov rdi, rax
-	pop rdx
-
-	; Configure MSI-X Table
-	add cx, 1			; Table Size is 0-indexed
-virtio_net_init_msix_entry:
-	mov rax, [os_LocalAPICAddress]	; 0xFEE for bits 31:20, Dest (19:12), RH (3), DM (2)
-	stosd				; Store Message Address Low
-	shr rax, 32			; Rotate the high bits to EAX
-	stosd				; Store Message Address High
-	mov eax, 0x000040AB		; Trigger Mode (15), Level (14), Delivery Mode (10:8), Vector (7:0)
-	stosd				; Store Message Data
-	xor eax, eax			; Bits 31:1 are reserved, Masked (0) - 1 for masked
-	stosd				; Store Vector Control
-	dec cx
-	cmp cx, 0
-	jne virtio_net_init_msix_entry
-	pop rdx
-
-	; Unmask MSI-X
-	call os_bus_read
-	btc eax, 30			; Clear Function Mask
-	call os_bus_write
-
 	jmp virtio_net_init_cap_next_offset
 
 virtio_net_init_cap:
@@ -291,7 +263,7 @@ virtio_net_init_reset_wait:
 	; reading and possibly writing the device’s virtio configuration space
 	; population of virtqueues
 
-	mov ax, 0x0000
+	mov ax, 0xFFFF			; Disable config interrupts
 	mov [rsi+VIRTIO_CONFIG_MSIX_VECTOR], ax
 
 	; Set up Queue 0 (Receive)
@@ -315,9 +287,8 @@ virtio_net_init_reset_wait:
 	rol rax, 32
 	mov [rsi+VIRTIO_QUEUE_DEVICE+8], eax
 	rol rax, 32
-	mov ax, 0x0001
+	mov ax, 0x0000			; MSI-X index 0
 	mov [rsi+VIRTIO_QUEUE_MSIX_VECTOR], ax
-	mov ax, [rsi+VIRTIO_QUEUE_MSIX_VECTOR]
 	mov ax, 1
 	mov [rsi+VIRTIO_QUEUE_ENABLE], ax
 
@@ -572,6 +543,24 @@ net_virtio_poll_nodata:
 	pop rsi
 	pop r8
 	ret
+; -----------------------------------------------------------------------------
+
+
+; -----------------------------------------------------------------------------
+; Virtio-net Interrupt
+align 8
+net_virtio_int:
+	push rcx
+	push rax
+
+	; Acknowledge the interrupt
+	mov ecx, APIC_EOI
+	xor eax, eax
+	call os_apic_write
+
+	pop rax
+	pop rcx
+	iretq
 ; -----------------------------------------------------------------------------
 
 

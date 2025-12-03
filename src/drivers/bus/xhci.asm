@@ -27,77 +27,11 @@ xhci_init:
 	bts eax, 1			; Enable Memory Space
 	call os_bus_write		; Write updated Status/Command
 
-	; Check for MSI-X in PCI Capabilities
-xhci_init_msix_check:
-	mov dl, 1
-	call os_bus_read		; Read register 1 for Status/Command
-	bt eax, 20			; Check bit 4 of the Status word (31:16)
-	jnc xhci_init_error		; If if doesn't exist then bail out
-	mov dl, 13
-	call os_bus_read		; Read register 13 for the Capabilities Pointer (7:0)
-	and al, 0xFC			; Clear the bottom two bits as they are reserved
-xhci_init_msix_check_cap_next:
-	shr al, 2			; Quick divide by 4
-	mov dl, al
-	call os_bus_read
-	cmp al, 0x11
-	je xhci_init_msix
-xhci_init_msix_check_cap_next_offset:
-	shr eax, 8			; Shift pointer to AL
-	cmp al, 0x00			; End of linked list?
-	jne xhci_init_msix_check_cap_next	; If not, continue reading
-	jmp xhci_init_msi_check		; Otherwise bail out and check for MSI
-xhci_init_msix:
-	push rdx
-	; Enable MSI-X, Mask it, Get Table Size
-	; Example MSI-X Entry (From QEMU xHCI Controller)
-	; 000FA011 <- Cap ID 0x11 (MSI-X), next ptr 0xA0, message control 0x000F - Table size is bits 10:0 so 0x0F
-	; 00003000 <- BIR (2:0) is 0x0 so BAR0, Table Offset (31:3) - 8-byte aligned so clear low 3 bits - 0x3000 in this case
-	; 00003800 <- Pending Bit BIR (2:0) and Pending Bit Offset (31:3) - 0x3800 in this case
-	; Message Control - Enable (15), Function Mask (14), Table Size (10:0)
-	call os_bus_read
-	mov ecx, eax			; Save for Table Size
-	bts eax, 31			; Enable MSIX
-	bts eax, 30			; Set Function Mask
-	call os_bus_write
-	shr ecx, 16			; Shift Message Control to low 16-bits
-	and cx, 0x7FF			; Keep bits 10:0
-	; Read the BIR and Table Offset
-	push rdx
-	add dl, 1
-	call os_bus_read
-	mov ebx, eax			; EBX for the Table Offset
-	and ebx, 0xFFFFFFF8		; Clear bits 2:0
-	and eax, 0x00000007		; Keep bits 2:0 for the BIR
-	add al, 0x04			; Add offset to start of BARs
-	mov dl, al
-	call os_bus_read		; Read the BAR address
-	add rax, rbx			; Add offset to base
-	sub rax, 0x04
-	mov rdi, rax
-	pop rdx
-	; Configure MSI-X Table
-	add cx, 1			; Table Size is 0-indexed
-	mov ebx, 0x000040A0		; Trigger Mode (15), Level (14), Delivery Mode (10:8), Vector (7:0)
-xhci_init_msix_entry:
-	mov rax, [os_LocalAPICAddress]	; 0xFEE for bits 31:20, Dest (19:12), RH (3), DM (2)
-	stosd				; Store Message Address Low
-	shr rax, 32			; Rotate the high bits to EAX
-	stosd				; Store Message Address High
-	mov eax, ebx
-	inc ebx
-	stosd				; Store Message Data
-	xor eax, eax			; Bits 31:1 are reserved, Masked (0) - 1 for masked
-	stosd				; Store Vector Control
-	dec cx
-	cmp cx, 0
-	jne xhci_init_msix_entry
-	; Unmask MSI-X
-	pop rdx
-	call os_bus_read
-	btr eax, 30			; Clear Function Mask
-	call os_bus_write
-	jmp xhci_init_msix_msi_done
+	; Configure MSI-X (if available)
+	; TODO - Keep track of used vectors and increment as needed
+	mov al, 0xA0
+	call msix_init
+	jnc xhci_init_msix_msi_done
 
 	; Check for MSI in PCI Capabilities
 xhci_init_msi_check:
@@ -347,7 +281,7 @@ xhci_reset_build_scratchpad:
 	; ├──────────────────────────────┴───────┤
 	; |     Ring Segment Base Address Hi     |
 	; ├──────────────────┬───────────────────┤
-	; |      RsvdZ       | Ring Segment Size | 
+	; |      RsvdZ       | Ring Segment Size |
 	; ├──────────────────┴───────────────────┤
 	; |                RsvdZ                 |
 	; └──────────────────────────────────────┘
@@ -1862,7 +1796,7 @@ xHCI_CC_STALL_ERROR			equ 6
 xHCI_CC_RESOURCE_ERROR			equ 7
 xHCI_CC_BANDWIDTH_ERROR			equ 8
 xHCI_CC_NO_SLOTS_ERROR			equ 9
-xHCI_CC_INVALID_STREAM_TYPE_ERROR	equ 10 
+xHCI_CC_INVALID_STREAM_TYPE_ERROR	equ 10
 xHCI_CC_SLOT_NOT_ENABLED_ERROR		equ 11
 xHCI_CC_EP_NOT_ENABLED_ERROR		equ 12
 xHCI_CC_SHORT_PACKET			equ 13

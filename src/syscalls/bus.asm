@@ -139,5 +139,45 @@ os_bus_read_bar_io:
 ; -----------------------------------------------------------------------------
 
 
+; -----------------------------------------------------------------------------
+; Check for a device capability
+;  IN:	RDX = Packed Bus address (as per syscalls/bus.asm)
+;	CL  = Capability
+; OUT:	RDX = Packed Bus address
+;	Carry clear = Capability found
+;	Carry set = Capability not found
+os_bus_cap_check:
+	push rax
+
+	mov dl, 1
+	call os_bus_read		; Read register 1 for Status/Command
+	bt eax, 20			; Check bit 4 of the Status word (31:16)
+	jnc os_bus_cap_check_error	; If if doesn't exist then bail out
+	mov dl, 13
+	call os_bus_read		; Read register 13 for the Capabilities Pointer (7:0)
+	and al, 0xFC			; Clear the bottom two bits as they are reserved
+os_bus_cap_check_next:
+	shr al, 2			; Quick divide by 4
+	mov dl, al
+	call os_bus_read
+	cmp al, cl
+	je os_bus_cap_check_done
+os_bus_cap_check_next_offset:
+	shr eax, 8			; Shift pointer to AL
+	cmp al, 0x00			; End of linked list?
+	jne os_bus_cap_check_next	; If not, continue reading, otherwise fall through to error
+
+os_bus_cap_check_error:
+	pop rax
+	stc				; Set the carry flag
+	ret
+
+os_bus_cap_check_done:
+	pop rax
+	clc				; Clear the carry flag
+	ret
+; -----------------------------------------------------------------------------
+
+
 ; =============================================================================
 ; EOF
